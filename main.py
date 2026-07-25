@@ -12,23 +12,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="SP Tech Solution - Billing API")
+app = FastAPI(title="Nanban Electronics - Billing API")
 
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
 else:
     allowed_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
+        "https://sptechsolution.co.in",
+        "http://sptechsolution.co.in",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
         "http://localhost:5500",
         "http://127.0.0.1:5500",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "null",
     ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,6 +86,7 @@ def init_db():
             customer_name VARCHAR(200) NOT NULL,
             phone VARCHAR(20) NOT NULL,
             address TEXT,
+            category VARCHAR(100) DEFAULT 'Others',
             product VARCHAR(300) NOT NULL,
             quantity INTEGER NOT NULL DEFAULT 1,
             rate NUMERIC(10, 2) NOT NULL,
@@ -91,6 +97,9 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_deleted BOOLEAN DEFAULT FALSE
         )
+    """)
+    cursor.execute("""
+        ALTER TABLE billing ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'Others';
     """)
     conn.commit()
     cursor.close()
@@ -112,6 +121,7 @@ class BillingCreate(BaseModel):
     customer_name: str
     phone: str
     address: Optional[str] = ""
+    category: Optional[str] = "Others"
     product: str
     quantity: int
     rate: float
@@ -125,6 +135,7 @@ class BillingUpdate(BaseModel):
     customer_name: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    category: Optional[str] = None
     product: Optional[str] = None
     quantity: Optional[int] = None
     rate: Optional[float] = None
@@ -138,7 +149,7 @@ class BillingUpdate(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "SP Tech Solution Billing API is running"}
+    return {"message": "Nanban Electronics Billing API is running"}
 
 
 @app.get("/auth/check", dependencies=[Depends(verify_admin)])
@@ -151,11 +162,11 @@ def create_bill(data: BillingCreate, conn=Depends(get_db)):
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO billing
-            (customer_name, phone, address, product, quantity, rate, total, gst, grand_total, bill_date)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (customer_name, phone, address, category, product, quantity, rate, total, gst, grand_total, bill_date)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """, (
-        data.customer_name, data.phone, data.address,
+        data.customer_name, data.phone, data.address, data.category,
         data.product, data.quantity, data.rate,
         data.total, data.gst, data.grand_total, data.bill_date
     ))
